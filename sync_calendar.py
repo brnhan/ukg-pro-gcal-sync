@@ -6,8 +6,8 @@ import pytz
 
 def get_shift_key(shift):
     return (
-        datetime.fromisoformat(shift["startDateTime"]).astimezone(pytz.timezone('Australia/Sydney')).replace(tzinfo=None),
-        datetime.fromisoformat(shift["endDateTime"]).astimezone(pytz.timezone('Australia/Sydney')).replace(tzinfo=None)
+        datetime.fromisoformat(shift["startDateTime"]).astimezone(pytz.timezone('Australia/Sydney')),
+        datetime.fromisoformat(shift["endDateTime"]).astimezone(pytz.timezone('Australia/Sydney'))
     )
 
 
@@ -34,13 +34,13 @@ def sync_all_shifts(shifts, service, calendar_id='primary'):
         if event.get('summary') != 'Work Shift':
             continue
 
-        start_dt = datetime.fromisoformat(event['start']['dateTime']).astimezone(tz).replace(tzinfo=None)
-        end_dt = datetime.fromisoformat(event['end']['dateTime']).astimezone(tz).replace(tzinfo=None)
+        start_dt = datetime.fromisoformat(event['start']['dateTime']).astimezone(tz)
+        end_dt = datetime.fromisoformat(event['end']['dateTime']).astimezone(tz)
         event_key = (start_dt, end_dt)
 
         if event_key not in fetched_shift_keys:
             service.events().delete(calendarId=calendar_id, eventId=event['id']).execute()
-            print("🗑️ Deleted removed shift:", start_dt, "-", end_dt)
+            print(f"🗑️ Deleted removed shift: {start_dt.isoformat()} - {end_dt.isoformat()}")
 
     # Re-fetch updated calendar to avoid duplicate inserts
     events = service.events().list(
@@ -55,8 +55,8 @@ def sync_all_shifts(shifts, service, calendar_id='primary'):
     for event in events:
         if event.get('summary') != 'Work Shift':
             continue
-        start_dt = datetime.fromisoformat(event['start']['dateTime']).astimezone(tz).replace(tzinfo=None)
-        end_dt = datetime.fromisoformat(event['end']['dateTime']).astimezone(tz).replace(tzinfo=None)
+        start_dt = datetime.fromisoformat(event['start']['dateTime']).astimezone(tz)
+        end_dt = datetime.fromisoformat(event['end']['dateTime']).astimezone(tz)
         existing_keys.add((start_dt, end_dt))
 
     # Now add any new shifts not already on the calendar
@@ -66,7 +66,7 @@ def sync_all_shifts(shifts, service, calendar_id='primary'):
         shift_key = get_shift_key(shift)
 
         if shift_key in existing_keys:
-            print("✅ Shift already exists, skipping:", shift_key)
+            print(f"✅ Shift already exists, skipping: {shift_key[0].isoformat()} - {shift_key[1].isoformat()}")
             continue
 
         event = {

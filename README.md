@@ -61,7 +61,7 @@ This project logs in to your UKG Pro portal via Microsoft SSO, fetches your rost
 ## 📅 Output Example
 
 ```
-📅 New shift added: 2025-04-10T12:00:00 - 2025-04-10T20:00:00
-✅ Shift already exists, skipping.
-♻️ Replacing existing shift.
+🗑️ Deleted removed shift: 2025-04-23T13:00:00+10:00 - 2025-04-23T18:00:00+10:00
+✅ Shift already exists, skipping: 2025-04-14T15:15:00+10:00 - 2025-04-14T20:15:00+10:00
+📅 New shift added: 2025-04-24 13:00:00+10:00 - 2025-04-24 18:00:00+10:00
 ```
