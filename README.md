@@ -1,4 +1,4 @@
-# UKG Pro Google Calendar Sync
+# UKG Pro GCal Sync
 
 This project logs in to your UKG Pro portal via Microsoft SSO, fetches your rostered shifts, and syncs them to your Google Calendar.
 
