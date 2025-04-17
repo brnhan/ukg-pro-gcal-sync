@@ -37,7 +37,8 @@ This project logs in to your UKG Pro portal via Microsoft SSO, fetches your rost
    python fetch_schedule.py
    ```
 
-   This will open a browser for Microsoft login and save your schedule in `schedule.json`.
+   - This will open a browser for Microsoft login if your login state isn't valid
+   - Then will save your schedule in `schedule.json`.
 
 6. Sync your shifts to Google Calendar:
    ```bash
