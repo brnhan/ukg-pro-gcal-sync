@@ -1,6 +1,6 @@
 # UKG Pro GCal Sync
 
-This project logs in to your UKG Pro portal via Microsoft SSO, fetches your rostered shifts, and syncs them to your Google Calendar.
+This project logs in to your UKG Pro portal via Microsoft SSO, fetches your rostered shifts, and syncs them to your Google Calendar. It's currently setup for the endeavour link so change the destination based on your use case,
 
 ## 🔧 Setup
 
@@ -26,19 +26,18 @@ This project logs in to your UKG Pro portal via Microsoft SSO, fetches your rost
    - Enable Calendar API and create OAuth credentials
    - Download the credentials as `credentials.json`
 
-4. Run the login script:
+4. Store login credentials
 
-   ```bash
-   python auth.py
-   ```
-
-   This will open a browser for Microsoft login and save your cookies in `.env`.
+   - Create a `.env` file at the root
+   - Fill `EMAIL` and `PASSWORD` fields
 
 5. Fetch your schedule:
 
    ```bash
    python fetch_schedule.py
    ```
+
+   This will open a browser for Microsoft login and save your schedule in `schedule.json`.
 
 6. Sync your shifts to Google Calendar:
    ```bash
@@ -47,7 +46,7 @@ This project logs in to your UKG Pro portal via Microsoft SSO, fetches your rost
 
 ## 🛡️ Security
 
-- `.env`, `token.json`, and `credentials.json` are ignored via `.gitignore` to prevent leaking sensitive information.
+- `.env`, `token.json`, and `credentials.json`, `auth_state.json` and `schedule.json` are ignored via `.gitignore` to prevent leaking sensitive information.
 
 ## ✅ Features
 
