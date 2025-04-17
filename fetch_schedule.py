@@ -1,28 +1,27 @@
 import json
 import os
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from datetime import datetime, timedelta
+
 from dotenv import load_dotenv
+from playwright.sync_api import sync_playwright
+import requests
 
-# Load .env file
+# Load credentials
 load_dotenv()
-
 EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("PASSWORD")
-
 if not EMAIL or not PASSWORD:
     raise ValueError("❌ EMAIL and PASSWORD must be set in your environment or .env file.")
 
 STATE_PATH = Path("auth_state.json")
 TARGET_URL = "https://endeavourgroup-sso.prd.mykronos.com/"
-FINAL_SCHEDULE_URL = "https://endeavourgroup-sso.prd.mykronos.com/wfd/ess/myschedule/"
-SCHEDULE_API_URL_PREFIX = "https://endeavourgroup-sso.prd.mykronos.com/myschedule/events"
+SCHEDULE_API_URL = "https://endeavourgroup-sso.prd.mykronos.com/myschedule/events"
 
-def is_schedule_request(response):
-    return (
-        response.url.startswith(SCHEDULE_API_URL_PREFIX)
-        and response.request.resource_type == "xhr"
-    )
+def get_date_range():
+    start_date = datetime.now() - timedelta(days=1)
+    end_date = start_date + timedelta(days=17)
+    return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
 
 def perform_login(page):
     print("📧 Filling email...")
@@ -45,7 +44,7 @@ def perform_login(page):
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=False)
 
-    # Validate the saved auth state
+    # Load or create authenticated browser context
     if STATE_PATH.exists() and STATE_PATH.stat().st_size > 0:
         try:
             json.loads(STATE_PATH.read_text())
@@ -59,41 +58,71 @@ with sync_playwright() as p:
 
     page = context.new_page()
 
-    # Log in and save state if needed
     if not STATE_PATH.exists():
         page.goto(TARGET_URL)
         perform_login(page)
         context.storage_state(path=STATE_PATH)
     else:
-        page.goto(TARGET_URL)
+        page.goto("https://endeavourgroup-sso.prd.mykronos.com/wfd/home")
         page.wait_for_url("**/wfd/home", timeout=60000)
 
-    # Go to the final schedule page
-    print("➡️ Navigating to final schedule page...")
-    page.goto(FINAL_SCHEDULE_URL)
-    page.wait_for_url("**/myschedule**")
+    # Extract XSRF-TOKEN and cookies
+    cookies = context.cookies()
+    cookie_header = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+    xsrf_token = next((c["value"] for c in cookies if c["name"] == "XSRF-TOKEN"), None)
 
-    # Capture only responses AFTER reaching the correct page
-    captured_data = {}
+    if not xsrf_token:
+        raise RuntimeError("❌ XSRF-TOKEN not found in cookies.")
 
-    def handle_response(response):
-        if is_schedule_request(response):
-            print(f"📡 Captured schedule JSON: {response.url}")
-            try:
-                captured_data["json"] = response.json()
-            except Exception as e:
-                print("⚠️ Failed to parse JSON:", e)
+    print("🧪 Making API call directly with session cookies and XSRF-TOKEN...")
 
-    page.on("response", handle_response)
+    start_date, end_date = get_date_range()
+    payload = {
+        "data": {
+            "calendarConfigId": 3000002,
+            "includedEntities": [
+                "entity.openshift", "entity.transfershift", "entity.scheduletag", "entity.regularshift",
+                "entity.paycodeedit", "entity.holiday", "entity.swaprequest", "entity.openshiftrequest",
+                "entity.coverrequest", "entity.timeoffrequest"
+            ],
+            "includedCoverRequestsStatuses": [],
+            "includedSwapRequestsStatuses": [],
+            "includedTimeOffRequestsStatuses": [],
+            "includedOpenShiftRequestsStatuses": [],
+            "includedSelfScheduleRequestsStatuses": [],
+            "includedAvailabilityRequestsStatuses": [],
+            "includedAvailabilityPatternRequestsStatuses": [],
+            "dateSpan": {
+                "start": start_date,
+                "end": end_date
+            },
+            "showJobColoring": True,
+            "showOrgPathToDisplay": True,
+            "includeEmployeePreferences": True,
+            "includeNodeAddress": True,
+            "removeDuplicatedEntities": True,
+            "hideInvisibleTORPayCodes": True
+        }
+    }
 
-    print("⏳ Waiting for schedule request to complete...")
-    page.wait_for_timeout(5000)  # Wait a bit for data to load
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/plain, */*",
+        "X-XSRF-TOKEN": xsrf_token,
+        "Cookie": cookie_header,
+        "Origin": "https://endeavourgroup-sso.prd.mykronos.com",
+        "Referer": "https://endeavourgroup-sso.prd.mykronos.com/wfd/ess/myschedule",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36"
+    }
 
-    if "json" in captured_data:
+    response = requests.post(SCHEDULE_API_URL, headers=headers, json=payload)
+
+    if response.status_code == 200:
         with open("schedule.json", "w", encoding="utf-8") as f:
-            json.dump(captured_data["json"], f, indent=2)
-        print("✅ schedule.json saved!")
+            json.dump(response.json(), f, indent=2)
+        print("✅ schedule.json saved via direct API request!")
     else:
-        print("❌ No schedule data was captured.")
+        print(f"❌ Failed to fetch schedule. Status: {response.status_code}")
+        print(response.text)
 
     browser.close()
