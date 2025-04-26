@@ -57,6 +57,7 @@ This project logs in to your UKG Pro portal via Microsoft SSO, fetches your rost
 - Syncs only regularShifts using datetime module
 - Deletes and replaces only misaligned "Work Shift" events
 - Inserts shifts with red color coding
+- Supports short-term cookie persistence
 
 ## 📅 Output Example
 
