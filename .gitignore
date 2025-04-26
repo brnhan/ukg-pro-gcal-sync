@@ -174,7 +174,7 @@ cython_debug/
 .pypirc
 
 # Private Stuff
-token.json
-credentials.json
+google_cal_token.json
+google_oauth_credentials.json
 schedule.json
-auth_state.json
+cookies.json

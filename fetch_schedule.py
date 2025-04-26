@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, Browser, BrowserContext
 import requests
 
 # Load credentials
@@ -14,7 +14,7 @@ PASSWORD = os.getenv("PASSWORD")
 if not EMAIL or not PASSWORD:
     raise ValueError("❌ EMAIL and PASSWORD must be set in your environment or .env file.")
 
-STATE_PATH = Path("auth_state.json")
+STATE_PATH = Path("cookies.json")
 TARGET_URL = "https://endeavourgroup-sso.prd.mykronos.com/"
 SCHEDULE_API_URL = "https://endeavourgroup-sso.prd.mykronos.com/myschedule/events"
 
@@ -41,41 +41,8 @@ def perform_login(page):
     page.wait_for_url("**/wfd/home", timeout=180000)
     print("✅ Logged in and redirected!")
 
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=False)
-
-    # Load or create authenticated browser context
-    if STATE_PATH.exists() and STATE_PATH.stat().st_size > 0:
-        try:
-            json.loads(STATE_PATH.read_text())
-            context = browser.new_context(storage_state=str(STATE_PATH))
-        except json.JSONDecodeError:
-            print("⚠️ auth_state.json is invalid — deleting.")
-            STATE_PATH.unlink()
-            context = browser.new_context()
-    else:
-        context = browser.new_context()
-
-    page = context.new_page()
-
-    if not STATE_PATH.exists():
-        page.goto(TARGET_URL)
-        perform_login(page)
-        context.storage_state(path=STATE_PATH)
-    else:
-        page.goto("https://endeavourgroup-sso.prd.mykronos.com/wfd/home")
-        page.wait_for_url("**/wfd/home", timeout=60000)
-
-    # Extract XSRF-TOKEN and cookies
-    cookies = context.cookies()
-    cookie_header = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
-    xsrf_token = next((c["value"] for c in cookies if c["name"] == "XSRF-TOKEN"), None)
-
-    if not xsrf_token:
-        raise RuntimeError("❌ XSRF-TOKEN not found in cookies.")
-
-    print("🧪 Making API call directly with session cookies and XSRF-TOKEN...")
-
+def perform_schedule_request(xsrf_token, cookie_header) -> bool:
+    print("🔄 Attempting request with existing cookies.")
     start_date, end_date = get_date_range()
     payload = {
         "data": {
@@ -117,12 +84,71 @@ with sync_playwright() as p:
 
     response = requests.post(SCHEDULE_API_URL, headers=headers, json=payload)
 
-    if response.status_code == 200:
-        with open("schedule.json", "w", encoding="utf-8") as f:
-            json.dump(response.json(), f, indent=2)
-        print("✅ schedule.json saved via direct API request!")
-    else:
+    if response.status_code != 200:
         print(f"❌ Failed to fetch schedule. Status: {response.status_code}")
         print(response.text)
+    else:
+        try:
+            data = response.json()
+
+            if not data:
+                print("❌ Empty response received. Possible invalid credentials or expired session.")
+                print(response.text)
+            else:
+                with open("schedule.json", "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                print("✅ schedule.json saved via direct API request!")
+                return True
+
+        except json.JSONDecodeError as e:
+            print(f"❌ Failed to parse JSON: {e}")
+            print("Response content was:")
+            print(response.text)
+
+    print("🗑️ Deleting stale existing Cookies")
+    STATE_PATH.unlink()
+    print("🔐 Attempting fresh request")
+    return False
+
+def init_browser_context(browser: Browser) -> BrowserContext:
+    if STATE_PATH.exists() and STATE_PATH.stat().st_size > 0:
+        try:
+            json.loads(STATE_PATH.read_text())
+            return browser.new_context(storage_state=str(STATE_PATH))
+        except json.JSONDecodeError:
+            print("⚠️ browser_cookies.json is invalid — deleting.")
+            STATE_PATH.unlink()
+            return browser.new_context()
+    else:
+        return browser.new_context()
+
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=False)
+
+    while True:
+        context = init_browser_context(browser)
+
+        page = context.new_page()
+
+        if not STATE_PATH.exists():
+            page.goto(TARGET_URL)
+            perform_login(page)
+            context.storage_state(path=STATE_PATH)
+        else:
+            page.goto("https://endeavourgroup-sso.prd.mykronos.com/wfd/home")
+            page.wait_for_url("**/wfd/home", timeout=60000)
+
+        # Extract XSRF-TOKEN and cookies
+        cookies = context.cookies()
+        cookie_header = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+        xsrf_token = next((c["value"] for c in cookies if c["name"] == "XSRF-TOKEN"), None)
+
+        if not xsrf_token:
+            raise RuntimeError("❌ XSRF-TOKEN not found in cookies.")
+
+        print("🧪 Making API call directly with session cookies and XSRF-TOKEN...")
+        if perform_schedule_request(xsrf_token, cookie_header):
+            break
 
     browser.close()

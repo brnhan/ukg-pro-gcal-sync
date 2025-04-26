@@ -24,7 +24,7 @@ This project logs in to your UKG Pro portal via Microsoft SSO, fetches your rost
 
    - Visit [Google Cloud Console](https://console.cloud.google.com/)
    - Enable Calendar API and create OAuth credentials
-   - Download the credentials as `credentials.json`
+   - Download the credentials as `google_oauth_credentials.json`
 
 4. Store login credentials
 
@@ -47,7 +47,7 @@ This project logs in to your UKG Pro portal via Microsoft SSO, fetches your rost
 
 ## 🛡️ Security
 
-- `.env`, `token.json`, and `credentials.json`, `auth_state.json` and `schedule.json` are ignored via `.gitignore` to prevent leaking sensitive information.
+- `.env`, `google_cal_token.json`, and `google_oauth_credentials`, `cookies.json` and `schedule.json` are ignored via `.gitignore` to prevent leaking sensitive information.
 
 ## ✅ Features
 
