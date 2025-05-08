@@ -83,5 +83,6 @@ if __name__ == "__main__":
     with open("schedule.json", "r") as f:
         data = json.load(f)
 
+    all_shifts = data.get("regularShifts", []) + data.get("transferShifts", [])
     service = get_calendar_service()
-    sync_all_shifts(data.get("regularShifts", []), service)
+    sync_all_shifts(all_shifts, service)
